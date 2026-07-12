@@ -2,12 +2,12 @@
 curl -s -X POST http://localhost:3000/optimize-route \
   -H "Content-Type: application/json" \
   -d '{
-    "depot": "1 Ferry Building, San Francisco, CA",
+    "depot": "233 S Wacker Dr, Chicago, IL",
     "stops": [
-      "1 Zoo Rd, San Francisco, CA",
-      "1355 Market St, San Francisco, CA",
-      "600 Montgomery St, San Francisco, CA",
-      "Pier 39, San Francisco, CA",
-      "2695 Frederick St, San Francisco, CA"
+      "875 N Michigan Ave, Chicago, IL",
+      "1060 W Addison St, Chicago, IL",
+      "111 N State St, Chicago, IL",
+      "1400 N Lake Shore Dr, Chicago, IL",
+      "1200 S Lake Shore Dr, Chicago, IL"
     ]
   }' | jq .
