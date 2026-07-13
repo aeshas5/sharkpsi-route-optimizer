@@ -1,9 +1,11 @@
 require('dotenv').config();
 const express = require('express');
+const cors = require('cors');
 const { geocodeAddress } = require('./geocode');
 const { getOptimizedRoute } = require('./directions');
 
 const app = express();
+app.use(cors());
 const PORT = process.env.PORT || 3000;
 const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
 

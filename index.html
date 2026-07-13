@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Route Flow — Route Optimizer</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <div class="app-container">
+
+    <aside class="sidebar">
+      <div class="app-title">
+        <span class="dot dot-blue"></span>
+        <span class="app-title-text">Route Flow</span>
+        <span class="app-title-version">v1.0</span>
+      </div>
+
+      <section class="sidebar-section">
+        <h2 class="section-header"><span class="dot dot-blue"></span>Depot</h2>
+        <div class="autocomplete-wrapper">
+          <input type="text" id="depot-input" class="text-input" placeholder="Enter depot address" autocomplete="off">
+          <div class="autocomplete-list"></div>
+        </div>
+      </section>
+
+      <section class="sidebar-section">
+        <h2 class="section-header"><span class="dot dot-green"></span>Vehicles</h2>
+        <input type="number" id="vehicles-input" class="text-input" value="1" min="1">
+      </section>
+
+      <section class="sidebar-section">
+        <div class="section-header-row">
+          <h2 class="section-header"><span class="dot dot-orange"></span>Deliveries</h2>
+          <span class="delivery-count" id="delivery-count">3 stops</span>
+        </div>
+
+        <div id="delivery-list" class="delivery-list">
+          <div class="delivery-row">
+            <span class="delivery-number">1</span>
+            <div class="autocomplete-wrapper">
+              <input type="text" class="text-input delivery-input" placeholder="Enter delivery address" autocomplete="off">
+              <div class="autocomplete-list"></div>
+            </div>
+            <button class="remove-btn" type="button" aria-label="Remove delivery">×</button>
+          </div>
+          <div class="delivery-row">
+            <span class="delivery-number">2</span>
+            <div class="autocomplete-wrapper">
+              <input type="text" class="text-input delivery-input" placeholder="Enter delivery address" autocomplete="off">
+              <div class="autocomplete-list"></div>
+            </div>
+            <button class="remove-btn" type="button" aria-label="Remove delivery">×</button>
+          </div>
+          <div class="delivery-row">
+            <span class="delivery-number">3</span>
+            <div class="autocomplete-wrapper">
+              <input type="text" class="text-input delivery-input" placeholder="Enter delivery address" autocomplete="off">
+              <div class="autocomplete-list"></div>
+            </div>
+            <button class="remove-btn" type="button" aria-label="Remove delivery">×</button>
+          </div>
+        </div>
+
+        <button id="add-delivery-btn" class="add-delivery-btn" type="button">+ Add Delivery</button>
+      </section>
+
+      <button id="optimize-btn" class="optimize-btn" type="button">
+        <span class="play-icon">▶</span> Plan Route
+      </button>
+
+      <div class="stats-panel">
+        <div class="stat-block">
+          <div class="stat-label">Total Distance</div>
+          <div class="stat-value" id="total-distance-display">0.0</div>
+          <div class="stat-unit">Kilometers</div>
+        </div>
+        <div class="stat-block stat-block-secondary">
+          <div class="stat-label">Stops</div>
+          <div class="stat-value-sm" id="stops-count">0</div>
+        </div>
+        <div class="stat-block stat-block-secondary">
+          <div class="stat-label">Total Time</div>
+          <div class="stat-value-sm" id="total-time-display">0 mins</div>
+        </div>
+      </div>
+
+      <p class="disclaimer">Powered by Google Maps API</p>
+    </aside>
+
+    <main class="main-area">
+
+      <section class="map-panel">
+        <div class="panel-header">
+          <span class="dot dot-green"></span>
+          <span class="panel-header-title">Route Display</span>
+        </div>
+        <div id="map" class="map"></div>
+      </section>
+
+      <div class="results-panel" id="results-section">
+        <div class="panel-header">
+          <span class="panel-header-title">Visit Order</span>
+          <button id="export-btn" class="export-btn" type="button">Export CSV</button>
+        </div>
+        <div class="results-table-wrap">
+          <table id="results-table" class="results-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Stop</th>
+                <th>Leg KM</th>
+                <th>Cum KM</th>
+              </tr>
+            </thead>
+            <tbody id="results-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+    </main>
+
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
