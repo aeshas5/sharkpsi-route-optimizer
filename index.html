@@ -6,17 +6,80 @@
   <title>Route Flow — Route Optimizer</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
+  <header class="site-header">
+    <div class="site-header-title">Route Flow</div>
+    <div class="site-header-subtitle">Intelligent Route Planning &amp; Dispatch</div>
+  </header>
+
   <div class="app-container">
 
+    <main class="main-area">
+
+      <section class="map-panel">
+        <div class="panel-header">
+          <span class="dot dot-green"></span>
+          <span class="panel-header-title">Route Display</span>
+        </div>
+        <div class="map-body">
+          <div id="map" class="map"></div>
+          <div class="map-stats-card">
+            <div class="map-stat">
+              <div class="map-stat-label">Distance</div>
+              <div class="map-stat-value" id="total-distance-display">0.0</div>
+              <div class="map-stat-unit">Kilometers</div>
+            </div>
+            <div class="map-stat">
+              <div class="map-stat-label">Stops</div>
+              <div class="map-stat-value-sm" id="stops-count">0</div>
+            </div>
+            <div class="map-stat">
+              <div class="map-stat-label">Total Time</div>
+              <div class="map-stat-value-sm" id="total-time-display">0 mins</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div class="results-panel" id="results-section">
+        <div class="panel-header">
+          <span class="panel-header-title">Route Flow &amp; Visit Order</span>
+          <button id="export-btn" class="export-btn" type="button">Export CSV</button>
+        </div>
+        <div class="results-table-wrap">
+          <table id="results-table" class="results-table">
+            <thead>
+              <tr>
+                <th></th>
+                <th>#</th>
+                <th>Stop</th>
+                <th>Leg KM</th>
+                <th>Cum KM</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="results-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+    </main>
+
     <aside class="sidebar">
-      <div class="app-title">
-        <span class="dot dot-blue"></span>
-        <span class="app-title-text">Route Flow</span>
-        <span class="app-title-version">v1.0</span>
+      <div class="status-widget">
+        <div class="clock-section">
+          <div class="clock-time" id="clock-time">--:-- --</div>
+          <div class="clock-date" id="clock-date">—</div>
+          <div class="clock-tz" id="clock-tz"></div>
+        </div>
+        <div class="widget-divider"></div>
+        <div class="weather-section" id="weather-section">
+          <div class="weather-loading">Loading weather…</div>
+        </div>
       </div>
 
       <section class="sidebar-section">
@@ -30,6 +93,11 @@
       <section class="sidebar-section">
         <h2 class="section-header"><span class="dot dot-green"></span>Vehicles</h2>
         <input type="number" id="vehicles-input" class="text-input" value="1" min="1">
+      </section>
+
+      <section class="sidebar-section">
+        <h2 class="section-header"><span class="dot dot-purple"></span>Max Weight Capacity (kg)</h2>
+        <input type="number" id="weight-capacity-input" class="text-input" placeholder="e.g. 500" min="0">
       </section>
 
       <section class="sidebar-section">
@@ -72,56 +140,8 @@
         <span class="play-icon">▶</span> Plan Route
       </button>
 
-      <div class="stats-panel">
-        <div class="stat-block">
-          <div class="stat-label">Total Distance</div>
-          <div class="stat-value" id="total-distance-display">0.0</div>
-          <div class="stat-unit">Kilometers</div>
-        </div>
-        <div class="stat-block stat-block-secondary">
-          <div class="stat-label">Stops</div>
-          <div class="stat-value-sm" id="stops-count">0</div>
-        </div>
-        <div class="stat-block stat-block-secondary">
-          <div class="stat-label">Total Time</div>
-          <div class="stat-value-sm" id="total-time-display">0 mins</div>
-        </div>
-      </div>
-
       <p class="disclaimer">Powered by Google Maps API</p>
     </aside>
-
-    <main class="main-area">
-
-      <section class="map-panel">
-        <div class="panel-header">
-          <span class="dot dot-green"></span>
-          <span class="panel-header-title">Route Display</span>
-        </div>
-        <div id="map" class="map"></div>
-      </section>
-
-      <div class="results-panel" id="results-section">
-        <div class="panel-header">
-          <span class="panel-header-title">Visit Order</span>
-          <button id="export-btn" class="export-btn" type="button">Export CSV</button>
-        </div>
-        <div class="results-table-wrap">
-          <table id="results-table" class="results-table">
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>Stop</th>
-                <th>Leg KM</th>
-                <th>Cum KM</th>
-              </tr>
-            </thead>
-            <tbody id="results-body"></tbody>
-          </table>
-        </div>
-      </div>
-
-    </main>
 
   </div>
 
