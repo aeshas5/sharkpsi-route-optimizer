@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const { geocodeAddress } = require('./geocode');
 const { getOptimizedRoute } = require('./directions');
+const { getAutocompleteSuggestions } = require('./places');
 
 const app = express();
 app.use(cors());
@@ -43,6 +44,42 @@ app.post('/optimize-route', async (req, res) => {
       totalDistance: route.totalDistance,
       totalEstimatedTime: route.totalDuration,
     });
+  } catch (err) {
+    res.status(502).json({ error: err.message });
+  }
+});
+
+app.get('/autocomplete', async (req, res) => {
+  const input = (req.query.input || '').toString().trim();
+
+  if (!GOOGLE_MAPS_API_KEY) {
+    return res.status(500).json({ error: 'GOOGLE_MAPS_API_KEY is not set' });
+  }
+  if (!input) {
+    return res.json({ suggestions: [] });
+  }
+
+  try {
+    const suggestions = await getAutocompleteSuggestions(input, GOOGLE_MAPS_API_KEY);
+    res.json({ suggestions });
+  } catch (err) {
+    res.status(502).json({ error: err.message });
+  }
+});
+
+app.get('/geocode', async (req, res) => {
+  const address = (req.query.address || '').toString().trim();
+
+  if (!GOOGLE_MAPS_API_KEY) {
+    return res.status(500).json({ error: 'GOOGLE_MAPS_API_KEY is not set' });
+  }
+  if (!address) {
+    return res.status(400).json({ error: 'address is required' });
+  }
+
+  try {
+    const result = await geocodeAddress(address, GOOGLE_MAPS_API_KEY);
+    res.json(result);
   } catch (err) {
     res.status(502).json({ error: err.message });
   }

@@ -22,7 +22,9 @@ function clearMap() {
 function createDepotMarker(lat, lng, address) {
   const icon = L.divIcon({
     className: 'depot-marker',
-    html: '<div class="depot-marker">D</div>'
+    html: 'D',
+    iconSize: [32, 32],
+    iconAnchor: [16, 16]
   });
 
   const marker = L.marker([lat, lng], { icon }).addTo(map);
@@ -35,7 +37,9 @@ function createDepotMarker(lat, lng, address) {
 function createDeliveryMarker(lat, lng, address, number) {
   const icon = L.divIcon({
     className: 'delivery-marker',
-    html: `<div class="delivery-marker">${number}</div>`
+    html: `${number}`,
+    iconSize: [28, 28],
+    iconAnchor: [14, 14]
   });
 
   const marker = L.marker([lat, lng], { icon }).addTo(map);
@@ -90,7 +94,15 @@ function setActiveView(view) {
   if (view === 'map') {
     // Leaflet doesn't detect layout changes while its container is display:none,
     // so it renders blank/misaligned tiles until nudged after becoming visible again.
-    setTimeout(() => map.invalidateSize(), 0);
+    // Re-fitting bounds here (rather than only right after Plan Route) also covers the
+    // case where a route was planned while List View was active, since fitBounds()
+    // computed against a hidden container can't be trusted.
+    setTimeout(() => {
+      map.invalidateSize();
+      if (depotMarker || markers.length > 0) {
+        fitMapToMarkers();
+      }
+    }, 0);
   }
 }
 
@@ -469,16 +481,14 @@ function debounce(fn, delayMs) {
 
 async function fetchAddressSuggestions(query) {
   try {
-    const response = await fetch(
-      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=5&addressdetails=1`,
-      { headers: { 'User-Agent': 'RouteFlow/1.0' } }
-    );
+    const response = await fetch(`http://localhost:3000/autocomplete?input=${encodeURIComponent(query)}`);
 
     if (!response.ok) {
       return [];
     }
 
-    return await response.json();
+    const data = await response.json();
+    return data.suggestions || [];
   } catch (error) {
     return [];
   }
@@ -495,9 +505,9 @@ function renderSuggestions(listEl, input, results, onSelect) {
   results.forEach(result => {
     const item = document.createElement('div');
     item.className = 'autocomplete-item';
-    item.textContent = result.display_name;
+    item.textContent = result.description;
     item.addEventListener('click', () => {
-      input.value = result.display_name;
+      input.value = result.description;
       listEl.innerHTML = '';
       listEl.classList.remove('is-open');
       if (onSelect) {
@@ -539,8 +549,11 @@ function attachAutocomplete(input, onSelect) {
 
 function initAutocompleteForAll() {
   const depotInput = document.getElementById('depot-input');
-  attachAutocomplete(depotInput, (result) => {
-    updateWeatherFromCoords({ lat: parseFloat(result.lat), lng: parseFloat(result.lon) });
+  attachAutocomplete(depotInput, async (result) => {
+    const coords = await geocodeForMap(result.description);
+    if (coords) {
+      updateWeatherFromCoords(coords);
+    }
   });
   depotInput.addEventListener('input', () => {
     if (!getDepotAddress()) {
@@ -561,27 +574,20 @@ document.addEventListener('click', (event) => {
 });
 
 /* ---------- Geocoding & map display ---------- */
-function delay(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-
 async function geocodeForMap(address) {
   try {
-    const response = await fetch(
-      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1`,
-      { headers: { 'User-Agent': 'RouteFlow/1.0' } }
-    );
+    const response = await fetch(`http://localhost:3000/geocode?address=${encodeURIComponent(address)}`);
 
     if (!response.ok) {
       return null;
     }
 
     const data = await response.json();
-    if (!data || data.length === 0) {
+    if (typeof data.lat !== 'number' || typeof data.lng !== 'number') {
       return null;
     }
 
-    return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+    return { lat: data.lat, lng: data.lng };
   } catch (error) {
     return null;
   }
@@ -593,7 +599,6 @@ async function displayOnMap(depot, optimizedStops) {
   const rows = document.querySelectorAll('#results-body tr');
   const points = [];
 
-  await delay(1000);
   const depotCoords = await geocodeForMap(depot);
   if (depotCoords) {
     createDepotMarker(depotCoords.lat, depotCoords.lng, depot);
@@ -606,7 +611,6 @@ async function displayOnMap(depot, optimizedStops) {
   }
 
   for (let i = 0; i < optimizedStops.length; i++) {
-    await delay(1000);
     const coords = await geocodeForMap(optimizedStops[i]);
     if (coords) {
       createDeliveryMarker(coords.lat, coords.lng, optimizedStops[i], i + 1);
