@@ -76,6 +76,24 @@ function fitMapToMarkers() {
   map.fitBounds(bounds, { padding: [50, 50] });
 }
 
+/* ---------- View tabs ---------- */
+function setActiveView(view) {
+  document.querySelectorAll('.view-tab').forEach(tab => {
+    const isActive = tab.dataset.view === view;
+    tab.classList.toggle('is-active', isActive);
+    tab.setAttribute('aria-selected', isActive ? 'true' : 'false');
+  });
+
+  document.getElementById('map-panel').classList.toggle('is-hidden', view !== 'map');
+  document.getElementById('results-section').classList.toggle('is-hidden', view !== 'list');
+
+  if (view === 'map') {
+    // Leaflet doesn't detect layout changes while its container is display:none,
+    // so it renders blank/misaligned tiles until nudged after becoming visible again.
+    setTimeout(() => map.invalidateSize(), 0);
+  }
+}
+
 function haversineDistanceKm(lat1, lng1, lat2, lng2) {
   const R = 6371;
   const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -108,6 +126,14 @@ function renumberDeliveryRows() {
 function updateDeliveryCount() {
   const count = document.querySelectorAll('#delivery-list .delivery-row').length;
   document.getElementById('delivery-count').textContent = `${count} stops`;
+}
+
+function updateRemoveButtonStates() {
+  const rows = document.querySelectorAll('#delivery-list .delivery-row');
+  const disableRemoval = rows.length <= 1;
+  rows.forEach(row => {
+    row.querySelector('.remove-btn').disabled = disableRemoval;
+  });
 }
 
 function addDeliveryRow() {
@@ -147,13 +173,86 @@ function addDeliveryRow() {
 
   renumberDeliveryRows();
   updateDeliveryCount();
+  updateRemoveButtonStates();
 }
 
 function removeDeliveryRow(button) {
+  const rows = document.querySelectorAll('#delivery-list .delivery-row');
+  if (rows.length <= 1) {
+    return;
+  }
+
   const row = button.closest('.delivery-row');
   row.remove();
   renumberDeliveryRows();
   updateDeliveryCount();
+  updateRemoveButtonStates();
+}
+
+/* ---------- Distance unit toggle ---------- */
+const KM_TO_MI = 0.621371;
+let distanceUnit = 'km';
+let totalDistanceKm = 0;
+
+function convertKm(km, unit) {
+  return unit === 'mi' ? km * KM_TO_MI : km;
+}
+
+function formatDistance(km, unit) {
+  if (km === null || Number.isNaN(km)) {
+    return '—';
+  }
+  return convertKm(km, unit).toFixed(1);
+}
+
+function renderDistanceStat() {
+  document.getElementById('total-distance-display').textContent =
+    convertKm(totalDistanceKm, distanceUnit).toFixed(1);
+  document.getElementById('distance-unit-label').textContent =
+    distanceUnit === 'mi' ? 'Miles' : 'Kilometers';
+}
+
+function renderRowDistances(row) {
+  const legKm = row.dataset.legKm === '' || row.dataset.legKm === undefined
+    ? null : parseFloat(row.dataset.legKm);
+  const cumKm = row.dataset.cumKm === '' || row.dataset.cumKm === undefined
+    ? null : parseFloat(row.dataset.cumKm);
+
+  row.children[3].textContent = formatDistance(legKm, distanceUnit);
+  row.children[4].textContent = formatDistance(cumKm, distanceUnit);
+}
+
+function setRowDistances(row, legKm, cumKm) {
+  row.dataset.legKm = legKm === null || legKm === undefined ? '' : legKm;
+  row.dataset.cumKm = cumKm === null || cumKm === undefined ? '' : cumKm;
+  renderRowDistances(row);
+}
+
+function updateUnitHeaders() {
+  const label = distanceUnit === 'mi' ? 'MI' : 'KM';
+  document.getElementById('leg-header').textContent = `Leg ${label}`;
+  document.getElementById('cum-header').textContent = `Cum ${label}`;
+}
+
+function updateUnitToggleUI() {
+  document.querySelectorAll('.unit-toggle-btn').forEach(btn => {
+    btn.classList.toggle('is-active', btn.dataset.unit === distanceUnit);
+  });
+}
+
+function renderAllDistances() {
+  renderDistanceStat();
+  document.querySelectorAll('#results-body tr').forEach(renderRowDistances);
+  updateUnitHeaders();
+  updateUnitToggleUI();
+}
+
+function setDistanceUnit(unit) {
+  if (unit === distanceUnit) {
+    return;
+  }
+  distanceUnit = unit;
+  renderAllDistances();
 }
 
 /* ---------- Results table & stats ---------- */
@@ -214,10 +313,7 @@ function createResultRow(number, stop, legKm, cumKm, isDepot) {
   stopCell.textContent = stop;
 
   const legCell = document.createElement('td');
-  legCell.textContent = legKm;
-
   const cumCell = document.createElement('td');
-  cumCell.textContent = cumKm;
 
   const statusCell = document.createElement('td');
   if (isDepot) {
@@ -229,6 +325,7 @@ function createResultRow(number, stop, legKm, cumKm, isDepot) {
   }
 
   row.append(handleCell, numCell, stopCell, legCell, cumCell, statusCell);
+  setRowDistances(row, legKm, cumKm);
   return row;
 }
 
@@ -236,10 +333,10 @@ function updateResultsTable(optimizedStops, depot) {
   const tbody = document.getElementById('results-body');
   tbody.innerHTML = '';
 
-  tbody.appendChild(createResultRow('D', depot, '—', '—', true));
+  tbody.appendChild(createResultRow('D', depot, null, null, true));
 
   optimizedStops.forEach((stop, index) => {
-    tbody.appendChild(createResultRow(index + 1, stop, '—', '—', false));
+    tbody.appendChild(createResultRow(index + 1, stop, null, null, false));
   });
 }
 
@@ -284,8 +381,6 @@ function recalculateResultsTable() {
 
   rows.forEach((row, index) => {
     const numCell = row.children[1];
-    const legCell = row.children[3];
-    const cumCell = row.children[4];
 
     const lat = parseFloat(row.dataset.lat);
     const lng = parseFloat(row.dataset.lng);
@@ -293,8 +388,7 @@ function recalculateResultsTable() {
 
     if (index === 0) {
       numCell.textContent = 'D';
-      legCell.textContent = '—';
-      cumCell.textContent = '—';
+      setRowDistances(row, null, null);
     } else {
       numCell.textContent = stopNumber;
       stopNumber += 1;
@@ -302,11 +396,9 @@ function recalculateResultsTable() {
       if (hasCoords && prevLat !== null && prevLng !== null) {
         const legKm = haversineDistanceKm(prevLat, prevLng, lat, lng);
         cumulativeKm += legKm;
-        legCell.textContent = legKm.toFixed(1);
-        cumCell.textContent = cumulativeKm.toFixed(1);
+        setRowDistances(row, legKm, cumulativeKm);
       } else {
-        legCell.textContent = '—';
-        cumCell.textContent = '—';
+        setRowDistances(row, null, null);
       }
     }
 
@@ -360,7 +452,8 @@ function handleRowReorder() {
 }
 
 function updateStats(totalDistance, totalTime, numStops) {
-  document.getElementById('total-distance-display').textContent = totalDistance.text;
+  totalDistanceKm = totalDistance.value / 1000;
+  renderDistanceStat();
   document.getElementById('total-time-display').textContent = totalTime.text;
   document.getElementById('stops-count').textContent = numStops;
 }
@@ -391,7 +484,7 @@ async function fetchAddressSuggestions(query) {
   }
 }
 
-function renderSuggestions(listEl, input, results) {
+function renderSuggestions(listEl, input, results, onSelect) {
   listEl.innerHTML = '';
 
   if (results.length === 0) {
@@ -407,6 +500,9 @@ function renderSuggestions(listEl, input, results) {
       input.value = result.display_name;
       listEl.innerHTML = '';
       listEl.classList.remove('is-open');
+      if (onSelect) {
+        onSelect(result);
+      }
     });
     listEl.appendChild(item);
   });
@@ -414,7 +510,7 @@ function renderSuggestions(listEl, input, results) {
   listEl.classList.add('is-open');
 }
 
-function attachAutocomplete(input) {
+function attachAutocomplete(input, onSelect) {
   if (input.dataset.autocompleteBound === 'true') {
     return;
   }
@@ -435,14 +531,24 @@ function attachAutocomplete(input) {
     }
 
     const results = await fetchAddressSuggestions(query);
-    renderSuggestions(listEl, input, results);
+    renderSuggestions(listEl, input, results, onSelect);
   }, 300);
 
   input.addEventListener('input', runSearch);
 }
 
 function initAutocompleteForAll() {
-  document.querySelectorAll('#depot-input, .delivery-input').forEach(attachAutocomplete);
+  const depotInput = document.getElementById('depot-input');
+  attachAutocomplete(depotInput, (result) => {
+    updateWeatherFromCoords({ lat: parseFloat(result.lat), lng: parseFloat(result.lon) });
+  });
+  depotInput.addEventListener('input', () => {
+    if (!getDepotAddress()) {
+      clearDepotWeather();
+    }
+  });
+
+  document.querySelectorAll('.delivery-input').forEach(input => attachAutocomplete(input));
 }
 
 document.addEventListener('click', (event) => {
@@ -492,6 +598,7 @@ async function displayOnMap(depot, optimizedStops) {
   if (depotCoords) {
     createDepotMarker(depotCoords.lat, depotCoords.lng, depot);
     points.push(depotCoords);
+    updateWeatherFromCoords(depotCoords);
     if (rows[0]) {
       rows[0].dataset.lat = depotCoords.lat;
       rows[0].dataset.lng = depotCoords.lng;
@@ -572,7 +679,8 @@ function exportCSV() {
     return;
   }
 
-  const csvRows = [['#', 'Stop', 'Leg KM', 'Cum KM', 'Status']];
+  const unitLabel = distanceUnit === 'mi' ? 'MI' : 'KM';
+  const csvRows = [['#', 'Stop', `Leg ${unitLabel}`, `Cum ${unitLabel}`, 'Status']];
 
   rows.forEach(row => {
     const cells = Array.from(row.querySelectorAll('td:not(.drag-handle-cell)')).map(
@@ -659,6 +767,16 @@ function renderWeatherUnavailable() {
     '<div class="weather-unavailable">Weather unavailable</div>';
 }
 
+function renderWeatherPrompt() {
+  document.getElementById('weather-section').innerHTML =
+    '<div class="weather-note">Enter a depot address to see weather</div>';
+}
+
+function renderWeatherLoading() {
+  document.getElementById('weather-section').innerHTML =
+    '<div class="weather-loading">Loading weather…</div>';
+}
+
 async function fetchAndRenderWeather(lat, lng) {
   try {
     const response = await fetch(
@@ -704,25 +822,28 @@ async function fetchAndRenderWeather(lat, lng) {
   }
 }
 
-function refreshWeatherFromCurrentPosition() {
-  if (!navigator.geolocation) {
-    renderWeatherUnavailable();
+let depotWeatherCoords = null;
+
+function updateWeatherFromCoords(coords) {
+  depotWeatherCoords = coords;
+  fetchAndRenderWeather(coords.lat, coords.lng);
+}
+
+function clearDepotWeather() {
+  depotWeatherCoords = null;
+  renderWeatherPrompt();
+}
+
+function refreshDepotWeather() {
+  if (!depotWeatherCoords) {
     return;
   }
-
-  navigator.geolocation.getCurrentPosition(
-    (position) => {
-      fetchAndRenderWeather(position.coords.latitude, position.coords.longitude);
-    },
-    () => {
-      renderWeatherUnavailable();
-    }
-  );
+  fetchAndRenderWeather(depotWeatherCoords.lat, depotWeatherCoords.lng);
 }
 
 function initWeatherWidget() {
-  refreshWeatherFromCurrentPosition();
-  setInterval(refreshWeatherFromCurrentPosition, 10 * 60 * 1000);
+  renderWeatherPrompt();
+  setInterval(refreshDepotWeather, 10 * 60 * 1000);
 }
 
 /* ---------- Wiring ---------- */
@@ -734,8 +855,17 @@ document.addEventListener('DOMContentLoaded', () => {
   document.querySelectorAll('#delivery-list .remove-btn').forEach(button => {
     button.addEventListener('click', () => removeDeliveryRow(button));
   });
+  updateRemoveButtonStates();
 
   document.getElementById('results-body').addEventListener('dragover', handleDragOver);
+
+  document.querySelectorAll('.unit-toggle-btn').forEach(btn => {
+    btn.addEventListener('click', () => setDistanceUnit(btn.dataset.unit));
+  });
+
+  document.querySelectorAll('.view-tab').forEach(tab => {
+    tab.addEventListener('click', () => setActiveView(tab.dataset.view));
+  });
 
   initAutocompleteForAll();
 

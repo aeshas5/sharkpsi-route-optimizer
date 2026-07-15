@@ -6,21 +6,42 @@
   <title>Route Flow — Route Optimizer</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
   <header class="site-header">
-    <div class="site-header-title">Route Flow</div>
+    <div class="site-header-title-row">
+      <svg class="site-header-icon" width="44" height="44" viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <circle cx="22" cy="22" r="19" fill="none" stroke="#2563eb" stroke-width="2.8"/>
+        <path d="M13,17 L19,27 L25,17 L31,27" fill="none" stroke="#2563eb" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="13" cy="17" r="3" fill="#2563eb"/>
+        <circle cx="19" cy="27" r="3" fill="#2563eb"/>
+        <circle cx="25" cy="17" r="3" fill="#2563eb"/>
+        <circle cx="31" cy="27" r="3" fill="#2563eb"/>
+      </svg>
+      <h1 class="site-header-title">Route Flow</h1>
+    </div>
     <div class="site-header-subtitle">Intelligent Route Planning &amp; Dispatch</div>
   </header>
+
+  <div class="view-tabs-bar">
+    <div class="view-tabs" role="tablist">
+      <button type="button" class="view-tab is-active" data-view="map" role="tab" aria-selected="true">Map View</button>
+      <button type="button" class="view-tab" data-view="list" role="tab" aria-selected="false">List View</button>
+    </div>
+    <div class="unit-toggle" role="group" aria-label="Distance unit">
+      <button type="button" class="unit-toggle-btn is-active" data-unit="km">KM</button>
+      <button type="button" class="unit-toggle-btn" data-unit="mi">MI</button>
+    </div>
+  </div>
 
   <div class="app-container">
 
     <main class="main-area">
 
-      <section class="map-panel">
+      <section class="map-panel" id="map-panel">
         <div class="panel-header">
           <span class="dot dot-green"></span>
           <span class="panel-header-title">Route Display</span>
@@ -31,7 +52,7 @@
             <div class="map-stat">
               <div class="map-stat-label">Distance</div>
               <div class="map-stat-value" id="total-distance-display">0.0</div>
-              <div class="map-stat-unit">Kilometers</div>
+              <div class="map-stat-unit" id="distance-unit-label">Kilometers</div>
             </div>
             <div class="map-stat">
               <div class="map-stat-label">Stops</div>
@@ -45,7 +66,7 @@
         </div>
       </section>
 
-      <div class="results-panel" id="results-section">
+      <div class="results-panel is-hidden" id="results-section">
         <div class="panel-header">
           <span class="panel-header-title">Route Flow &amp; Visit Order</span>
           <button id="export-btn" class="export-btn" type="button">Export CSV</button>
@@ -57,8 +78,8 @@
                 <th></th>
                 <th>#</th>
                 <th>Stop</th>
-                <th>Leg KM</th>
-                <th>Cum KM</th>
+                <th id="leg-header">Leg KM</th>
+                <th id="cum-header">Cum KM</th>
                 <th>Status</th>
               </tr>
             </thead>
@@ -77,8 +98,9 @@
           <div class="clock-tz" id="clock-tz"></div>
         </div>
         <div class="widget-divider"></div>
+        <div class="weather-label">Depot Area Weather</div>
         <div class="weather-section" id="weather-section">
-          <div class="weather-loading">Loading weather…</div>
+          <div class="weather-note">Enter a depot address to see weather</div>
         </div>
       </div>
 
@@ -91,18 +113,18 @@
       </section>
 
       <section class="sidebar-section">
-        <h2 class="section-header"><span class="dot dot-green"></span>Vehicles</h2>
+        <h2 class="section-header"><span class="dot dot-blue-2"></span>Vehicles</h2>
         <input type="number" id="vehicles-input" class="text-input" value="1" min="1">
       </section>
 
       <section class="sidebar-section">
-        <h2 class="section-header"><span class="dot dot-purple"></span>Max Weight Capacity (kg)</h2>
+        <h2 class="section-header"><span class="dot dot-blue-3"></span>Max Weight Capacity (kg)</h2>
         <input type="number" id="weight-capacity-input" class="text-input" placeholder="e.g. 500" min="0">
       </section>
 
       <section class="sidebar-section">
         <div class="section-header-row">
-          <h2 class="section-header"><span class="dot dot-orange"></span>Deliveries</h2>
+          <h2 class="section-header"><span class="dot dot-blue-4"></span>Deliveries</h2>
           <span class="delivery-count" id="delivery-count">3 stops</span>
         </div>
 
