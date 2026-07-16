@@ -1,5 +1,11 @@
+const { decodePolyline } = require('./polyline');
+
 function toLatLngParam(point) {
   return `${point.lat},${point.lng}`;
+}
+
+function legPath(leg) {
+  return leg.steps.flatMap((step) => decodePolyline(step.polyline.points));
 }
 
 async function getOptimizedRoute(origin, destination, waypoints, apiKey) {
@@ -37,6 +43,11 @@ async function getOptimizedRoute(origin, destination, waypoints, apiKey) {
       value: totalDurationSeconds,
       text: `${Math.round(totalDurationSeconds / 60)} mins`,
     },
+    legs: route.legs.map((leg) => ({
+      distance: { value: leg.distance.value, text: leg.distance.text },
+      duration: { value: leg.duration.value, text: leg.duration.text },
+      path: legPath(leg),
+    })),
   };
 }
 

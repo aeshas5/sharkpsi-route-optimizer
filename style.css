@@ -66,27 +66,27 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 20px 16px;
+  padding: 0 20px 18px;
   border-bottom: 1px solid rgba(0, 0, 0, 0.08);
 }
 
 .view-tabs {
   display: flex;
-  gap: 4px;
+  gap: 6px;
 }
 
 .view-tab {
   background: transparent;
   border: none;
-  border-bottom: 2px solid transparent;
+  border-bottom: 3px solid transparent;
   margin-bottom: -1px;
   color: #6b7280;
   font-family: inherit;
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 600;
   letter-spacing: 1px;
   text-transform: uppercase;
-  padding: 10px 20px;
+  padding: 12px 26px;
   cursor: pointer;
   transition: color 0.2s ease, border-color 0.2s ease;
 }
@@ -234,6 +234,16 @@ body {
   outline: none;
   border-color: #3b82f6;
   box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.06), 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+
+.field-error {
+  font-size: 11px;
+  color: #ef4444;
+  font-weight: 500;
+}
+
+.field-error:empty {
+  display: none;
 }
 
 /* ---------- Address autocomplete ---------- */
@@ -500,11 +510,11 @@ body {
 
 .unit-toggle {
   display: flex;
-  gap: 2px;
+  gap: 3px;
   width: fit-content;
   background: rgba(0, 0, 0, 0.05);
-  border-radius: 6px;
-  padding: 2px;
+  border-radius: 8px;
+  padding: 3px;
 }
 
 .unit-toggle-btn {
@@ -512,11 +522,11 @@ body {
   background: transparent;
   color: #6b7280;
   font-family: inherit;
-  font-size: 10px;
+  font-size: 13px;
   font-weight: 700;
   letter-spacing: 0.5px;
-  padding: 3px 8px;
-  border-radius: 4px;
+  padding: 7px 16px;
+  border-radius: 6px;
   cursor: pointer;
   transition: all 0.15s ease;
 }
@@ -535,6 +545,43 @@ body {
   font-size: 15px;
   font-weight: 600;
   color: #111827;
+}
+
+.vehicle-breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.vehicle-breakdown:empty {
+  display: none;
+}
+
+.vehicle-stat-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+}
+
+.vehicle-stat-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.vehicle-stat-label {
+  font-weight: 600;
+  color: #111827;
+  flex-shrink: 0;
+}
+
+.vehicle-stat-value {
+  color: #6b7280;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* ---------- Results panel ---------- */
@@ -625,6 +672,10 @@ body {
   opacity: 0.5;
 }
 
+.results-table tbody tr.vehicle-group-start td {
+  border-top: 2px solid rgba(0, 0, 0, 0.18);
+}
+
 .status-cell {
   cursor: pointer;
   font-weight: 600;
@@ -641,6 +692,18 @@ body {
 
 .status-failed {
   color: #ef4444;
+}
+
+.vehicle-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #ffffff;
+  background: var(--vehicle-color, #6b7280);
 }
 
 .is-hidden {

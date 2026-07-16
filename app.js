@@ -8,6 +8,8 @@ let markers = [];
 let routeLines = [];
 let depotMarker = null;
 
+const VEHICLE_COLORS = ['#3b82f6', '#f97316', '#22c55e', '#8b5cf6', '#ec4899', '#06b6d4', '#eab308', '#f43f5e'];
+
 function clearMap() {
   markers.forEach(marker => marker.remove());
   routeLines.forEach(line => line.remove());
@@ -34,7 +36,7 @@ function createDepotMarker(lat, lng, address) {
   return marker;
 }
 
-function createDeliveryMarker(lat, lng, address, number) {
+function createDeliveryMarker(lat, lng, address, number, color) {
   const icon = L.divIcon({
     className: 'delivery-marker',
     html: `${number}`,
@@ -45,11 +47,16 @@ function createDeliveryMarker(lat, lng, address, number) {
   const marker = L.marker([lat, lng], { icon }).addTo(map);
   marker.bindPopup(address);
 
+  const el = marker.getElement();
+  if (el && color) {
+    el.style.backgroundColor = color;
+  }
+
   markers.push(marker);
   return marker;
 }
 
-function drawRoute(points) {
+function drawStraightRoute(points) {
   const latLngs = points.map(point => [point.lat, point.lng]);
 
   const routeLine = L.polyline(latLngs, {
@@ -66,6 +73,32 @@ function drawRoute(points) {
     dashArray: '10, 10'
   }).addTo(map);
   routeLines.push(returnLine);
+}
+
+// Draws the actual road-following path from the Directions API, one leg at a time,
+// in the given vehicle's color. legs.length === stops.length + 1: depot->stop1,
+// stop1->stop2, ..., stopN->depot, so the last leg is styled as the dashed
+// "return to depot" segment to match the existing visual language of drawStraightRoute.
+function drawRoadRoute(legs, color) {
+  legs.forEach((leg, index) => {
+    if (!leg.path || leg.path.length === 0) {
+      return;
+    }
+    const latLngs = leg.path.map(point => [point.lat, point.lng]);
+    const isReturnLeg = index === legs.length - 1;
+
+    const line = L.polyline(latLngs, isReturnLeg ? {
+      color,
+      weight: 2,
+      opacity: 0.45,
+      dashArray: '10, 10'
+    } : {
+      color,
+      weight: 4,
+      opacity: 0.85
+    }).addTo(map);
+    routeLines.push(line);
+  });
 }
 
 function fitMapToMarkers() {
@@ -186,6 +219,7 @@ function addDeliveryRow() {
   renumberDeliveryRows();
   updateDeliveryCount();
   updateRemoveButtonStates();
+  setVehiclesError('');
 }
 
 function removeDeliveryRow(button) {
@@ -199,6 +233,7 @@ function removeDeliveryRow(button) {
   renumberDeliveryRows();
   updateDeliveryCount();
   updateRemoveButtonStates();
+  setVehiclesError('');
 }
 
 /* ---------- Distance unit toggle ---------- */
@@ -230,8 +265,8 @@ function renderRowDistances(row) {
   const cumKm = row.dataset.cumKm === '' || row.dataset.cumKm === undefined
     ? null : parseFloat(row.dataset.cumKm);
 
-  row.children[3].textContent = formatDistance(legKm, distanceUnit);
-  row.children[4].textContent = formatDistance(cumKm, distanceUnit);
+  row.children[4].textContent = formatDistance(legKm, distanceUnit);
+  row.children[5].textContent = formatDistance(cumKm, distanceUnit);
 }
 
 function setRowDistances(row, legKm, cumKm) {
@@ -252,11 +287,49 @@ function updateUnitToggleUI() {
   });
 }
 
+let lastVehiclesData = [];
+
+// Only shown when there's more than one vehicle — for the common single-vehicle case
+// the combined totals above already say everything this breakdown would repeat.
+function renderVehicleBreakdown() {
+  const breakdown = document.getElementById('vehicle-breakdown');
+  breakdown.innerHTML = '';
+
+  if (lastVehiclesData.length <= 1) {
+    return;
+  }
+
+  const unitLabel = distanceUnit === 'mi' ? 'mi' : 'km';
+
+  lastVehiclesData.forEach((vehicle) => {
+    const row = document.createElement('div');
+    row.className = 'vehicle-stat-row';
+
+    const dot = document.createElement('span');
+    dot.className = 'vehicle-stat-dot';
+    dot.style.background = vehicle.color;
+
+    const label = document.createElement('span');
+    label.className = 'vehicle-stat-label';
+    label.textContent = `V${vehicle.vehicleNumber}`;
+
+    const value = document.createElement('span');
+    value.className = 'vehicle-stat-value';
+    const distance = formatDistance(vehicle.totalDistance.value / 1000, distanceUnit);
+    value.textContent =
+      `${distance} ${unitLabel} · ${vehicle.optimizedStopOrder.length} stops · ${vehicle.totalEstimatedTime.text}`;
+
+    row.append(dot, label, value);
+    breakdown.appendChild(row);
+  });
+}
+
 function renderAllDistances() {
   renderDistanceStat();
   document.querySelectorAll('#results-body tr').forEach(renderRowDistances);
   updateUnitHeaders();
   updateUnitToggleUI();
+  renderVehicleBreakdown();
 }
 
 function setDistanceUnit(unit) {
@@ -288,12 +361,12 @@ function cycleStatus(cell) {
   setStatusCell(cell, nextStatus);
 }
 
-function createResultRow(number, stop, legKm, cumKm, isDepot) {
+function createResultRow(number, stop, legKm, cumKm, isDepot, vehicleInfo, draggable) {
   const row = document.createElement('tr');
 
   const handleCell = document.createElement('td');
   handleCell.className = 'drag-handle-cell';
-  if (!isDepot) {
+  if (!isDepot && draggable) {
     row.draggable = true;
 
     const handle = document.createElement('span');
@@ -321,6 +394,17 @@ function createResultRow(number, stop, legKm, cumKm, isDepot) {
     numCell.style.fontWeight = '600';
   }
 
+  const vehicleCell = document.createElement('td');
+  if (vehicleInfo) {
+    const badge = document.createElement('span');
+    badge.className = 'vehicle-badge';
+    badge.style.setProperty('--vehicle-color', vehicleInfo.color);
+    badge.textContent = `V${vehicleInfo.number}`;
+    vehicleCell.appendChild(badge);
+  } else {
+    vehicleCell.textContent = '—';
+  }
+
   const stopCell = document.createElement('td');
   stopCell.textContent = stop;
 
@@ -336,19 +420,44 @@ function createResultRow(number, stop, legKm, cumKm, isDepot) {
     setStatusCell(statusCell, 'Pending');
   }
 
-  row.append(handleCell, numCell, stopCell, legCell, cumCell, statusCell);
+  row.append(handleCell, numCell, vehicleCell, stopCell, legCell, cumCell, statusCell);
   setRowDistances(row, legKm, cumKm);
   return row;
 }
 
-function updateResultsTable(optimizedStops, depot) {
+// Renders one shared depot row followed by each vehicle's stops grouped together
+// (stop numbering restarts at 1 per vehicle, matching that vehicle's map markers).
+// Drag-to-reorder is only enabled when there's a single vehicle — with multiple
+// vehicles, reordering would mean reassigning a stop to a different vehicle's route
+// entirely, which needs a fresh optimize call rather than a client-side reshuffle,
+// so it's out of scope here.
+function updateResultsTable(vehicles) {
   const tbody = document.getElementById('results-body');
   tbody.innerHTML = '';
 
-  tbody.appendChild(createResultRow('D', depot, null, null, true));
+  const draggable = vehicles.length === 1;
+  const multiVehicle = vehicles.length > 1;
+  const depot = vehicles[0].depot;
 
-  optimizedStops.forEach((stop, index) => {
-    tbody.appendChild(createResultRow(index + 1, stop, null, null, false));
+  tbody.appendChild(createResultRow('D', depot.address, null, null, true, null, false));
+
+  vehicles.forEach((vehicle) => {
+    vehicle.optimizedStopOrder.forEach((stop, index) => {
+      const row = createResultRow(
+        index + 1,
+        stop,
+        null,
+        null,
+        false,
+        { number: vehicle.vehicleNumber, color: vehicle.color },
+        draggable
+      );
+      row.dataset.vehicle = vehicle.vehicleNumber;
+      if (multiVehicle && index === 0) {
+        row.classList.add('vehicle-group-start');
+      }
+      tbody.appendChild(row);
+    });
   });
 }
 
@@ -439,12 +548,12 @@ function redrawRouteFromTable() {
       return;
     }
 
-    const address = row.children[2].textContent;
+    const address = row.children[3].textContent;
 
     if (index === 0) {
       createDepotMarker(lat, lng, address);
     } else {
-      createDeliveryMarker(lat, lng, address, stopNumber);
+      createDeliveryMarker(lat, lng, address, stopNumber, VEHICLE_COLORS[0]);
       stopNumber += 1;
     }
 
@@ -452,7 +561,7 @@ function redrawRouteFromTable() {
   });
 
   if (routePoints.length > 1) {
-    drawRoute(routePoints);
+    drawStraightRoute(routePoints);
   }
 
   fitMapToMarkers();
@@ -463,11 +572,16 @@ function handleRowReorder() {
   redrawRouteFromTable();
 }
 
-function updateStats(totalDistance, totalTime, numStops) {
-  totalDistanceKm = totalDistance.value / 1000;
+function updateStats(data) {
+  totalDistanceKm = data.totalDistance.value / 1000;
   renderDistanceStat();
-  document.getElementById('total-time-display').textContent = totalTime.text;
-  document.getElementById('stops-count').textContent = numStops;
+  document.getElementById('total-time-display').textContent = data.totalEstimatedTime.text;
+
+  const totalStops = data.vehicles.reduce((sum, v) => sum + v.optimizedStopOrder.length, 0);
+  document.getElementById('stops-count').textContent = totalStops;
+
+  lastVehiclesData = data.vehicles;
+  renderVehicleBreakdown();
 }
 
 /* ---------- Address autocomplete ---------- */
@@ -593,56 +707,97 @@ async function geocodeForMap(address) {
   }
 }
 
-async function displayOnMap(depot, optimizedStops) {
+// Draws one shared depot marker plus every vehicle's stops and road path, each
+// vehicle in its own assigned color, all visible on the map simultaneously.
+function displayOnMap(data) {
   clearMap();
 
   const rows = document.querySelectorAll('#results-body tr');
-  const points = [];
+  const depot = data.vehicles[0].depot;
 
-  const depotCoords = await geocodeForMap(depot);
-  if (depotCoords) {
-    createDepotMarker(depotCoords.lat, depotCoords.lng, depot);
-    points.push(depotCoords);
-    updateWeatherFromCoords(depotCoords);
-    if (rows[0]) {
-      rows[0].dataset.lat = depotCoords.lat;
-      rows[0].dataset.lng = depotCoords.lng;
-    }
+  createDepotMarker(depot.lat, depot.lng, depot.address);
+  updateWeatherFromCoords({ lat: depot.lat, lng: depot.lng });
+  if (rows[0]) {
+    rows[0].dataset.lat = depot.lat;
+    rows[0].dataset.lng = depot.lng;
   }
 
-  for (let i = 0; i < optimizedStops.length; i++) {
-    const coords = await geocodeForMap(optimizedStops[i]);
-    if (coords) {
-      createDeliveryMarker(coords.lat, coords.lng, optimizedStops[i], i + 1);
-      points.push(coords);
-      if (rows[i + 1]) {
-        rows[i + 1].dataset.lat = coords.lat;
-        rows[i + 1].dataset.lng = coords.lng;
+  let rowIndex = 1;
+  data.vehicles.forEach((vehicle) => {
+    vehicle.stopCoordinates.forEach((coords, i) => {
+      createDeliveryMarker(coords.lat, coords.lng, vehicle.optimizedStopOrder[i], i + 1, vehicle.color);
+      if (rows[rowIndex]) {
+        rows[rowIndex].dataset.lat = coords.lat;
+        rows[rowIndex].dataset.lng = coords.lng;
       }
-    }
-  }
+      rowIndex++;
+    });
 
-  if (points.length > 1) {
-    drawRoute(points);
-  }
+    if (vehicle.legs && vehicle.legs.length > 0) {
+      drawRoadRoute(vehicle.legs, vehicle.color);
+    }
+  });
 
   fitMapToMarkers();
 }
 
 /* ---------- Optimize flow ---------- */
-async function handleOptimize() {
+// For each vehicle, legs[0..stopCount-1] are its depot->stop1->stop2->...->stopN legs
+// (real driving distance/duration from the Directions API); legs[stopCount] is that
+// vehicle's return-to-depot leg, which isn't reflected in the table, matching how CUM
+// has always represented "distance traveled so far to reach this stop" rather than the
+// full round trip. Cumulative distance resets to 0 at the start of each vehicle's
+// group, since CUM is relative to that vehicle's own route from the depot.
+function populateAllRowDistances(vehicles) {
+  const rows = document.querySelectorAll('#results-body tr');
+  let rowIndex = 1;
+
+  vehicles.forEach((vehicle) => {
+    let cumulativeKm = 0;
+    const stopCount = vehicle.optimizedStopOrder.length;
+
+    for (let i = 0; i < stopCount; i++) {
+      const legKm = vehicle.legs[i].distance.value / 1000;
+      cumulativeKm += legKm;
+      if (rows[rowIndex]) {
+        setRowDistances(rows[rowIndex], legKm, cumulativeKm);
+      }
+      rowIndex++;
+    }
+  });
+}
+
+function getVehicleCount() {
+  const raw = parseInt(document.getElementById('vehicles-input').value, 10);
+  return Number.isInteger(raw) && raw > 0 ? raw : 1;
+}
+
+function setVehiclesError(message) {
+  document.getElementById('vehicles-error').textContent = message || '';
+}
+
+// Shared by the "Plan Route" button and the live auto-replan triggered when the
+// Vehicles field changes. `silent: true` (used by the live-update path) skips the
+// depot/delivery nag alerts, since the user may simply not have finished filling in
+// the form yet — auto-replanning shouldn't interrupt them with a popup for that.
+// The vehicle-count/stop-count validation always shows its inline message either way.
+async function runOptimize({ silent = false } = {}) {
   const depot = getDepotAddress();
   const deliveryAddresses = getDeliveryAddresses();
+  const vehicleCount = getVehicleCount();
 
-  if (!depot) {
-    alert('Please enter a depot address');
+  if (!depot || deliveryAddresses.length === 0) {
+    if (!silent) {
+      alert(!depot ? 'Please enter a depot address' : 'Please add at least one delivery');
+    }
     return;
   }
 
-  if (deliveryAddresses.length === 0) {
-    alert('Please add at least one delivery');
+  if (vehicleCount > deliveryAddresses.length) {
+    setVehiclesError(`Add more delivery stops to use ${vehicleCount} vehicles`);
     return;
   }
+  setVehiclesError('');
 
   const optimizeBtn = document.getElementById('optimize-btn');
   const originalContent = optimizeBtn.innerHTML;
@@ -653,7 +808,7 @@ async function handleOptimize() {
     const response = await fetch('http://localhost:3000/optimize-route', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ depot, stops: deliveryAddresses })
+      body: JSON.stringify({ depot, stops: deliveryAddresses, vehicleCount })
     });
 
     if (!response.ok) {
@@ -664,9 +819,10 @@ async function handleOptimize() {
 
     const data = await response.json();
 
-    updateResultsTable(data.optimizedStopOrder, depot);
-    updateStats(data.totalDistance, data.totalEstimatedTime, data.optimizedStopOrder.length);
-    await displayOnMap(depot, data.optimizedStopOrder);
+    updateResultsTable(data.vehicles);
+    populateAllRowDistances(data.vehicles);
+    updateStats(data);
+    displayOnMap(data);
   } catch (error) {
     alert('Failed to reach the route optimizer. Please try again.');
   } finally {
@@ -684,7 +840,7 @@ function exportCSV() {
   }
 
   const unitLabel = distanceUnit === 'mi' ? 'MI' : 'KM';
-  const csvRows = [['#', 'Stop', `Leg ${unitLabel}`, `Cum ${unitLabel}`, 'Status']];
+  const csvRows = [['#', 'Vehicle', 'Stop', `Leg ${unitLabel}`, `Cum ${unitLabel}`, 'Status']];
 
   rows.forEach(row => {
     const cells = Array.from(row.querySelectorAll('td:not(.drag-handle-cell)')).map(
@@ -852,7 +1008,7 @@ function initWeatherWidget() {
 
 /* ---------- Wiring ---------- */
 document.addEventListener('DOMContentLoaded', () => {
-  document.getElementById('optimize-btn').addEventListener('click', handleOptimize);
+  document.getElementById('optimize-btn').addEventListener('click', () => runOptimize());
   document.getElementById('add-delivery-btn').addEventListener('click', addDeliveryRow);
   document.getElementById('export-btn').addEventListener('click', exportCSV);
 
@@ -860,6 +1016,11 @@ document.addEventListener('DOMContentLoaded', () => {
     button.addEventListener('click', () => removeDeliveryRow(button));
   });
   updateRemoveButtonStates();
+
+  document.getElementById('vehicles-input').addEventListener(
+    'input',
+    debounce(() => runOptimize({ silent: true }), 500)
+  );
 
   document.getElementById('results-body').addEventListener('dragover', handleDragOver);
 
