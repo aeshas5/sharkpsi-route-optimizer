@@ -39,4 +39,69 @@ function splitStopsAcrossVehicles(depot, stops, vehicleCount) {
   return buckets.map((bucket) => bucket.stops);
 }
 
-module.exports = { haversineDistanceMeters, splitStopsAcrossVehicles };
+// Assumed average driving speed used only to *estimate* travel time from straight-line
+// distance, cheaply, with no routing API calls. Deliberately on the conservative side
+// (city driving with stops/lights/turns) so the estimate tends to under-pack rather
+// than over-pack — the real per-vehicle time from the Directions API is what actually
+// gets checked against the hard cap afterward.
+const ASSUMED_SPEED_METERS_PER_SECOND = 8.33; // ~30 km/h
+
+function estimateSeconds(meters) {
+  return meters / ASSUMED_SPEED_METERS_PER_SECOND;
+}
+
+// Greedy best-fit bin packing by estimated round-trip time: process stops farthest
+// from the depot first, and add each one to whichever open bucket keeps it under
+// maxTimeSeconds while resulting in the lowest estimated total time; if it doesn't fit
+// in any open bucket, open a new one for it. Used to pack stops that got evicted from
+// their original vehicle because the real (post-Directions-call) route time exceeded
+// the hard cap — those stops need to land in a vehicle (new, if necessary) that the
+// estimate says should fit, which then gets verified for real by the caller.
+function binPackByEstimatedTime(depot, stops, targetBucketCount, maxTimeSeconds) {
+  const sorted = [...stops].sort((a, b) =>
+    haversineDistanceMeters(depot, b.stop) - haversineDistanceMeters(depot, a.stop)
+  );
+
+  const buckets = Array.from({ length: Math.max(targetBucketCount, 0) }, () => ({
+    stops: [],
+    lastPoint: depot,
+    chainSeconds: 0,
+  }));
+
+  sorted.forEach((entry) => {
+    let bestBucket = null;
+    let bestTotal = Infinity;
+    let bestLegSeconds = 0;
+
+    buckets.forEach((bucket) => {
+      const legSeconds = estimateSeconds(haversineDistanceMeters(bucket.lastPoint, entry.stop));
+      const returnSeconds = estimateSeconds(haversineDistanceMeters(entry.stop, depot));
+      const total = bucket.chainSeconds + legSeconds + returnSeconds;
+
+      if (total <= maxTimeSeconds && total < bestTotal) {
+        bestBucket = bucket;
+        bestTotal = total;
+        bestLegSeconds = legSeconds;
+      }
+    });
+
+    if (!bestBucket) {
+      bestBucket = { stops: [], lastPoint: depot, chainSeconds: 0 };
+      bestLegSeconds = estimateSeconds(haversineDistanceMeters(depot, entry.stop));
+      buckets.push(bestBucket);
+    }
+
+    bestBucket.stops.push(entry);
+    bestBucket.chainSeconds += bestLegSeconds;
+    bestBucket.lastPoint = entry.stop;
+  });
+
+  return buckets.map((bucket) => bucket.stops).filter((stops) => stops.length > 0);
+}
+
+module.exports = {
+  haversineDistanceMeters,
+  splitStopsAcrossVehicles,
+  estimateSeconds,
+  binPackByEstimatedTime,
+};

@@ -776,6 +776,15 @@ function setVehiclesError(message) {
   document.getElementById('vehicles-error').textContent = message || '';
 }
 
+function getMaxTimeMinutes() {
+  const raw = parseFloat(document.getElementById('max-time-input').value);
+  return Number.isFinite(raw) && raw > 0 ? raw : null;
+}
+
+function setMaxTimeError(message) {
+  document.getElementById('max-time-error').textContent = message || '';
+}
+
 // Shared by the "Plan Route" button and the live auto-replan triggered when the
 // Vehicles field changes. `silent: true` (used by the live-update path) skips the
 // depot/delivery nag alerts, since the user may simply not have finished filling in
@@ -785,6 +794,7 @@ async function runOptimize({ silent = false } = {}) {
   const depot = getDepotAddress();
   const deliveryAddresses = getDeliveryAddresses();
   const vehicleCount = getVehicleCount();
+  const maxTimeMinutes = getMaxTimeMinutes();
 
   if (!depot || deliveryAddresses.length === 0) {
     if (!silent) {
@@ -792,6 +802,14 @@ async function runOptimize({ silent = false } = {}) {
     }
     return;
   }
+
+  if (maxTimeMinutes === null) {
+    if (!silent) {
+      setMaxTimeError('Enter a max time per route to plan a route');
+    }
+    return;
+  }
+  setMaxTimeError('');
 
   if (vehicleCount > deliveryAddresses.length) {
     setVehiclesError(`Add more delivery stops to use ${vehicleCount} vehicles`);
@@ -808,7 +826,7 @@ async function runOptimize({ silent = false } = {}) {
     const response = await fetch('http://localhost:3000/optimize-route', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ depot, stops: deliveryAddresses, vehicleCount })
+      body: JSON.stringify({ depot, stops: deliveryAddresses, vehicleCount, maxTimeMinutes })
     });
 
     if (!response.ok) {
